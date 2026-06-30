@@ -636,55 +636,69 @@ mini2.MouseButton1Click:Connect(function()
 	closebutton.Position =  UDim2.new(0, 0, -1, 27)
 end)
 -- GODMODE
-local godModeActive = false
-local godModeTouchConns = {}
-local godModeHealthConn = nil
-local godModeDiedConn = nil
+local Players = game:GetService("Players")
 
-local function setGodmode(enabled)
-	godModeActive = enabled
-	godBtn.Text = enabled and "Godmode: ON" or "Godmode"
+local function EnableGodMode(character)
+	local humanoid = character:WaitForChild("Humanoid")
 
-	-- Dọn kết nối cũ
-	for _, conn in pairs(godModeTouchConns) do
-		conn:Disconnect()
-	end
-	table.clear(godModeTouchConns)
+	humanoid.MaxHealth = math.huge
+	humanoid.Health = math.huge
 
-	if godModeHealthConn then godModeHealthConn:Disconnect() end
-	if godModeDiedConn then godModeDiedConn:Disconnect() end
-	godModeHealthConn, godModeDiedConn = nil, nil
+	humanoid.BreakJointsOnDeath = false
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
 
-	if enabled then
-		local character = player.Character or player.CharacterAdded:Wait()
-		local humanoid = character:WaitForChild("Humanoid")
-		local root = character:WaitForChild("HumanoidRootPart")
+	local tag = Instance.new("BoolValue")
+	tag.Name = "GodMode"
+	tag.Parent = character
 
-		-- Không mất máu
-		godModeHealthConn = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-			if humanoid.Health < humanoid.MaxHealth then
+	humanoid.HealthChanged:Connect(function()
+		if humanoid.Health < humanoid.MaxHealth then
+			humanoid.Health = humanoid.MaxHealth
+		end
+	end)
+
+	humanoid.Died:Connect(function()
+		task.defer(function()
+			if humanoid and humanoid.Parent then
 				humanoid.Health = humanoid.MaxHealth
 			end
 		end)
+	end)
 
-		-- Không chết
-		godModeDiedConn = humanoid.Died:Connect(function()
-			humanoid.Health = humanoid.MaxHealth
-		end)
+	task.spawn(function()
+		while character.Parent and humanoid.Parent do
+			humanoid.MaxHealth = math.huge
 
-		-- Không bị chạm gây tác động
-		for _, part in pairs(workspace:GetDescendants()) do
-			if part:IsA("BasePart") then
-				local conn = part.Touched:Connect(function(hit)
-					if hit:IsDescendantOf(character) then
-						-- Không làm gì cả → miễn nhiễm
-					end
-				end)
-				table.insert(godModeTouchConns, conn)
+			if humanoid.Health < humanoid.MaxHealth then
+				humanoid.Health = humanoid.MaxHealth
 			end
+
+			if humanoid:GetState() == Enum.HumanoidStateType.Dead then
+				humanoid:ChangeState(Enum.HumanoidStateType.Running)
+			end
+
+			task.wait()
 		end
-	end
+	end)
 end
+
+local function OnCharacterAdded(character)
+	EnableGodMode(character)
+end
+
+local function OnPlayerAdded(player)
+	if player.Character then
+		OnCharacterAdded(player.Character)
+	end
+
+	player.CharacterAdded:Connect(OnCharacterAdded)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+	OnPlayerAdded(player)
+end
+
+Players.PlayerAdded:Connect(OnPlayerAdded)
 
 -- Bấm nút để bật/tắt godmode
 godBtn.MouseButton1Click:Connect(function()
